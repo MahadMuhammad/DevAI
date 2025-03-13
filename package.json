@@ -1,0 +1,108 @@
+{
+  "name": "chat",
+  "displayName": "chat",
+  "description": "chat",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "chat-container",
+          "title": "Chat",
+          "icon": "media/robot.svg"
+        }
+      ]
+    },
+    "views": {
+      "chat-container": [
+        {
+          "type": "webview",
+          "id": "chat.chat",
+          "name": "Dev AI Chat View",
+          "contextualTitle": "Secure Chat"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "chat.helloWorld",
+        "title": "Hello World"
+      },
+      {
+        "command": "chat.chat",
+        "title": "Dev AI Chat",
+        "icon": "media/robot.svg"
+      },
+      {
+        "command": "chat.refreshEntry",
+        "title": "Refresh",
+        "icon": {
+          "light": "resources/light/refresh.svg",
+          "dark": "resources/dark/refresh.svg"
+        }
+      },
+      {
+        "command": "chat.fix",
+        "title": "Fix selected code"
+      },
+      {
+        "command": "chat.explain",
+        "title": "Explain selected code"
+      },
+      {
+        "command": "chat.test",
+        "title": "Test selected code"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "chat.chat",
+          "group": "Chat",
+          "when": "view == chat.chat"
+        },
+        {
+          "command": "chat.refreshEntry",
+          "group": "navigation",
+          "when": "view == chat.chat"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.96.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@typescript-eslint/eslint-plugin": "^8.17.0",
+    "@typescript-eslint/parser": "^8.17.0",
+    "eslint": "^9.16.0",
+    "esbuild": "^0.24.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.7.2",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1"
+  }
+}
