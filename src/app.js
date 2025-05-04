@@ -1,5 +1,5 @@
-const LOCAL_OLLAMA = "http://127.0.0.1:11434";
-// const LOCAL_OLLAMA = "http://192.168.192.128:11435";
+// const LOCAL_OLLAMA = "http://127.0.0.1:11434";
+const LOCAL_OLLAMA = "http://74.225.223.193:11435";
 const HISTORY_LENGTH = 100;
 // prevent overdrawing while streaming the content
 const throttledDrawFeed = throttle(drawFeed, 120);
@@ -17,7 +17,7 @@ let $prompt;
 let $submit;
 let $models;
 const vscode = acquireVsCodeApi();
-let storedCode = '';
+let storedCode = "";
 
 window.addEventListener("DOMContentLoaded", () => {
   $chat = document.getElementById("chat");
@@ -111,10 +111,10 @@ function setLoading(value = true) {
 }
 
 // Add event listener for messages from extension
-window.addEventListener('message', event => {
+window.addEventListener("message", (event) => {
   const message = event.data;
   switch (message.type) {
-    case 'storeCode':
+    case "storeCode":
       storedCode = message.code;
       break;
   }
@@ -128,7 +128,7 @@ async function submit() {
   }
 
   const prompt = $prompt.value.trim();
-  
+
   if (!prompt) {
     console.error("No prompt provided");
     return;
@@ -138,22 +138,26 @@ async function submit() {
   console.log("Using model:", state.model);
 
   let finalPrompt = prompt;
-  
+
   // Handle commands that need selected code
-  if (prompt.startsWith('/fix') || prompt.startsWith('/explain') || prompt.startsWith('/test')) {
+  if (
+    prompt.startsWith("/fix") ||
+    prompt.startsWith("/explain") ||
+    prompt.startsWith("/test")
+  ) {
     if (!storedCode) {
       vscode.postMessage({
-        type: 'error',
-        message: 'No code selected. Please select code first.'
+        type: "error",
+        message: "No code selected. Please select code first.",
       });
       return;
     }
 
-    if (prompt.startsWith('/fix')) {
+    if (prompt.startsWith("/fix")) {
       finalPrompt = `Please fix this code and explain the changes:\n\n${storedCode}`;
-    } else if (prompt.startsWith('/explain')) {
+    } else if (prompt.startsWith("/explain")) {
       finalPrompt = `Please explain this code:\n\n${storedCode}`;
-    } else if (prompt.startsWith('/test')) {
+    } else if (prompt.startsWith("/test")) {
       finalPrompt = `Please write test cases for this code:\n\n${storedCode}`;
     }
   }
@@ -187,9 +191,9 @@ async function submit() {
     }
 
     // Clear the stored code after sending
-    storedCode = '';
+    storedCode = "";
     vscode.postMessage({
-      type: 'clearStoredCode'
+      type: "clearStoredCode",
     });
 
     const reader = res.body.getReader();
@@ -203,14 +207,14 @@ async function submit() {
     // Fix the JSON parsing of streamed chunks
     while (true) {
       const { done, value } = await reader.read();
-      if (done){ 
+      if (done) {
         break;
       }
       const text = new TextDecoder().decode(value);
-      const lines = text.split('\n');
+      const lines = text.split("\n");
 
       for (const line of lines) {
-        if (!line.trim()){ 
+        if (!line.trim()) {
           continue;
         }
         try {
@@ -220,7 +224,7 @@ async function submit() {
             throttledDrawFeed();
           }
         } catch (parseError) {
-          console.warn('Failed to parse chunk:', parseError);
+          console.warn("Failed to parse chunk:", parseError);
           continue;
         }
       }
@@ -261,16 +265,16 @@ async function getModels() {
 }
 
 // Add this at the top with other event listeners
-document.getElementById("clear-button").addEventListener("click", function() {
+document.getElementById("clear-button").addEventListener("click", function () {
   // Clear chat history
   state.messages = [];
   // Clear stored code
-  storedCode = '';
+  storedCode = "";
 
   // Clear the prompt input
-  document.getElementById("prompt").value = '';
+  document.getElementById("prompt").value = "";
   // Inform extension to clear stored code
   vscode.postMessage({
-    type: 'clearStoredCode'
+    type: "clearStoredCode",
   });
 });
