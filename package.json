@@ -71,6 +71,10 @@
       {
         "command": "chat.completionAccepted",
         "title": "Completion Accepted"
+      },
+      {
+        "command": "chat.triggerCompletion",
+        "title": "Trigger AI Code Completion"
       }
     ],
     "menus": {
@@ -87,6 +91,14 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "chat.triggerCompletion",
+        "key": "alt+\\",
+        "mac": "alt+\\",
+        "when": "editorTextFocus"
+      }
+    ],
     "configuration": {
       "title": "Dev AI Assistant",
       "properties": {
@@ -97,7 +109,7 @@
         },
         "ollama.model": {
           "type": "string",
-          "default": "codellama",
+          "default": "gemma2:2b-instruct-q4_K_M",
           "description": "Model to use for completions (e.g., codellama, llama2)"
         },
         "ollama.maxTokens": {
@@ -114,6 +126,13 @@
           "type": "boolean",
           "default": false,
           "description": "Track telemetry for accepted completions (local only)"
+        },
+        "ollama.temperature": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Temperature for completions (0 = deterministic, higher = more random)"
         }
       }
     }

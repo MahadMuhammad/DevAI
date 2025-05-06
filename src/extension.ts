@@ -8,6 +8,20 @@ export function activate(context: vscode.ExtensionContext) {
   const inlineCompletionDisposables = initializeInlineCompletions(context);
   inlineCompletionDisposables.forEach(d => context.subscriptions.push(d));
 
+  // Register command to manually trigger inline completions
+  context.subscriptions.push(
+    vscode.commands.registerCommand("chat.triggerCompletion", async () => {
+      try {
+        // Trigger inline completion via the built-in command
+        await vscode.commands.executeCommand("editor.action.inlineSuggest.trigger");
+        console.log("Manually triggered inline completions");
+      } catch (error) {
+        console.error("Failed to trigger inline completions:", error);
+        vscode.window.showErrorMessage(`Failed to trigger completions: ${error}`);
+      }
+    })
+  );
+
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
       OllamaChatProvider.viewType,

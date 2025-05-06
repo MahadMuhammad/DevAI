@@ -1,71 +1,71 @@
-# chat README
+# DevAI Chat Extension
 
-This is the README for your extension "chat". After writing up a brief description, we recommend including the following sections.
+This VS Code extension provides AI-powered features including chat and inline code completions using the Ollama API.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+### AI Chat
+Access a powerful AI chat interface directly in VS Code for code-related questions, explanations, and assistance.
 
-For example if there is an image subfolder under your extension project workspace:
+### AI Code Completions
+Get real-time code suggestions as you type with AI-powered inline completions.
 
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+![Code Completions Demo](images/code-completions.png)
 
 ## Requirements
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+- VS Code 1.96.0 or newer
+- Access to an Ollama server (local or remote)
+- A compatible model installed on the Ollama server (e.g., gemma2:2b-instruct-q4_K_M, codellama, etc.)
 
 ## Extension Settings
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
 This extension contributes the following settings:
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+### Ollama Configuration:
+
+* `ollama.endpoint`: Ollama API endpoint URL (default: "http://74.225.223.193:11435")
+* `ollama.model`: Model to use for completions (default: "gemma2:2b-instruct-q4_K_M")
+* `ollama.maxTokens`: Maximum number of tokens to generate (default: 50)
+* `ollama.pauseCompletion`: Pause automatic completions (default: false)
+* `ollama.temperature`: Temperature for completions, 0 = deterministic, higher = more random (default: 0.2)
+* `ollama.trackTelemetry`: Track telemetry for accepted completions - local only (default: false)
+
+## Using Inline Completions
+
+The extension provides AI-powered code completions as you type:
+
+1. **Automatic Completions**: As you code, the extension will automatically suggest completions based on the context.
+2. **Manual Trigger**: Press `Alt+\` to manually trigger a completion suggestion.
+3. **Toggle Completions**: Use the command "Toggle AI Code Completions" to turn the feature on or off.
+
+### Keyboard Shortcuts
+
+- `Alt+\`: Manually trigger an AI code completion
+- `Tab`: Accept the current suggestion (VS Code default)
+- Arrow keys: Navigate through multiple suggestions (VS Code default)
+
+## Troubleshooting Inline Completions
+
+If inline completions aren't working:
+
+1. **Check Connection**: Ensure you have access to the Ollama API endpoint specified in settings.
+2. **Check Model**: Verify that the model specified in settings is available on your Ollama server.
+3. **Manual Trigger**: Try manually triggering completions with `Alt+\`.
+4. **View Logs**: Check the "DevAI" output channel for error messages.
+5. **Toggle Feature**: Try turning the feature off and back on with the "Toggle AI Code Completions" command.
 
 ## Known Issues
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+- The Ollama API endpoint must be accessible from your VS Code environment.
+- Large files (>180KB) may not receive completions to avoid performance issues.
 
 ## Release Notes
 
-Users appreciate release notes as you update your extension.
+### 0.0.1
 
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
+- Initial release with AI chat and code completion features
 
 ---
 
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+**Enjoy coding with DevAI!**
