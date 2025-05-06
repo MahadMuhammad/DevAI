@@ -1,7 +1,12 @@
 import * as vscode from "vscode";
+import { initializeInlineCompletions } from './inlineCompletions';
 
 export function activate(context: vscode.ExtensionContext) {
   const provider = new OllamaChatProvider(context.extensionUri);
+
+  // Initialize inline completions from the separate file
+  const inlineCompletionDisposables = initializeInlineCompletions(context);
+  inlineCompletionDisposables.forEach(d => context.subscriptions.push(d));
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
