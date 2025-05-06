@@ -271,7 +271,7 @@ class OllamaInlineCompletionProvider
       "endpoint",
       "http://74.225.223.193:11435"
     );
-    const model = config.get<string>("model", "codellama");
+    const model = config.get<string>("model", "gemma2:2b-instruct-q4_K_M");
     const maxTokens = config.get<number>("maxTokens", 50);
 
     // Adjust temperature based on repeated manual invocations
@@ -313,6 +313,19 @@ class OllamaInlineCompletionProvider
     // Create prompt with file info and code context
     const promptText = `${languageHint}// Complete the following ${fileExtension} code:\n${prefix}`;
 
+    console.log("Prompt text:", promptText);
+    console.log("Model:", model);
+    console.log("Max tokens:", maxTokens);
+    console.log("Temperature:", temperature);
+    console.log("Endpoint:", endpoint);
+    console.log("File name:", fileName);
+    console.log("Cursor line:", cursorLine);
+    console.log("Cursor character:", cursorCharacter);
+    console.log("Multiline:", multiline);
+    console.log("Called manually:", calledManually);
+    console.log("Context lines:", contextLines);
+    console.log("Manual completion count:", manualCompletionCount);
+    
     // Call Ollama API
     try {
       const response = await this.callOllamaAPI(
