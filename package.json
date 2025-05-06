@@ -10,6 +10,8 @@
     "Other"
   ],
   "activationEvents": [
+    "onStartupFinished",
+    "onLanguage:*"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -61,6 +63,14 @@
       {
         "command": "chat.test",
         "title": "Test selected code"
+      },
+      {
+        "command": "chat.toggleCompletions",
+        "title": "Toggle AI Code Completions"
+      },
+      {
+        "command": "chat.completionAccepted",
+        "title": "Completion Accepted"
       }
     ],
     "menus": {
@@ -76,6 +86,36 @@
           "when": "view == chat.chat"
         }
       ]
+    },
+    "configuration": {
+      "title": "Dev AI Assistant",
+      "properties": {
+        "ollama.endpoint": {
+          "type": "string",
+          "default": "http://74.225.223.193:11435",
+          "description": "Ollama API endpoint URL"
+        },
+        "ollama.model": {
+          "type": "string",
+          "default": "codellama",
+          "description": "Model to use for completions (e.g., codellama, llama2)"
+        },
+        "ollama.maxTokens": {
+          "type": "number",
+          "default": 50,
+          "description": "Maximum number of tokens to generate"
+        },
+        "ollama.pauseCompletion": {
+          "type": "boolean",
+          "default": false,
+          "description": "Pause automatic completions"
+        },
+        "ollama.trackTelemetry": {
+          "type": "boolean",
+          "default": false,
+          "description": "Track telemetry for accepted completions (local only)"
+        }
+      }
     }
   },
   "scripts": {
@@ -90,7 +130,9 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "download-api": "dts dev",
+    "postinstall": "npm run download-api"
   },
   "devDependencies": {
     "@types/vscode": "^1.96.0",
@@ -103,6 +145,7 @@
     "npm-run-all": "^4.1.5",
     "typescript": "^5.7.2",
     "@vscode/test-cli": "^0.0.10",
-    "@vscode/test-electron": "^2.4.1"
+    "@vscode/test-electron": "^2.4.1",
+    "@vscode/dts": "^0.4.0"
   }
 }

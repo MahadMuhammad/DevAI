@@ -12,7 +12,7 @@
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
-				"${workspaceFolder}/playground.js",
+				"${workspaceFolder}/playground.py",
 				"--disable-extensions"
 			],
 			"outFiles": [
