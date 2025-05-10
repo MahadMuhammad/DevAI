@@ -75,6 +75,10 @@
       {
         "command": "chat.triggerCompletion",
         "title": "Trigger AI Code Completion"
+      },
+      {
+        "command": "chat.updateCompletionModel",
+        "title": "Update Completion Model"
       }
     ],
     "menus": {

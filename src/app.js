@@ -5,7 +5,8 @@ const HISTORY_LENGTH = 100;
 const throttledDrawFeed = throttle(drawFeed, 120);
 
 const state = {
-  model: null,
+  chatModel: null,
+  completionModel: null,
   models: [],
   messages: [],
 };
@@ -26,6 +27,9 @@ window.addEventListener("DOMContentLoaded", () => {
   $submit = $chat.querySelector('[type="submit"]');
   $models = document.getElementById("models");
 
+  const $chatModels = document.getElementById("chat-models");
+  const $completionModels = document.getElementById("completion-models");
+
   // Submit with Ctrl/Cmd+Enter
   $body.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -40,8 +44,22 @@ window.addEventListener("DOMContentLoaded", () => {
     await submit();
   });
 
-  $models.addEventListener("change", (e) => {
-    state.model = e.target.value;
+  $chatModels.addEventListener("change", (e) => {
+    state.chatModel = e.target.value;
+    vscode.postMessage({
+      type: 'modelSelected',
+      model: e.target.value,
+      isCompletionModel: false
+    });
+  });
+
+  $completionModels.addEventListener("change", (e) => {
+    state.completionModel = e.target.value;
+    vscode.postMessage({
+      type: 'modelSelected',
+      model: e.target.value,
+      isCompletionModel: true
+    });
   });
 
   getModels();
@@ -78,11 +96,13 @@ function drawFeed() {
     const $message = document.createElement("div");
     $message.classList.add("message");
     $message.classList.add(
-      message.role == "user" ? "message__user" : "message__assistant"
+      message.role === "user" ? "message__user" : "message__assistant"
     );
     const $title = document.createElement("h4");
     $title.innerHTML =
-      message.role == "user" ? "You" : `🤖 Assistant <i>(${message.model})</i>`;
+      message.role === "user"
+        ? "You"
+        : `🤖 Assistant <i>(${message.model})</i>`;
     const $body = document.createElement("p");
     $body.innerHTML = marked.parse(message.content, { gfm: false });
     $message.appendChild($title);
@@ -122,8 +142,8 @@ window.addEventListener("message", (event) => {
 
 // Modify the submit function to handle commands with stored code
 async function submit() {
-  if (!state.model) {
-    console.error("No model selected");
+  if (!state.chatModel) {
+    console.error("No chat model selected");
     return;
   }
 
@@ -135,7 +155,7 @@ async function submit() {
   }
 
   console.log("Submitting prompt:", prompt);
-  console.log("Using model:", state.model);
+  console.log("Using chat model:", state.chatModel);
 
   let finalPrompt = prompt;
 
@@ -154,11 +174,18 @@ async function submit() {
     }
 
     if (prompt.startsWith("/fix")) {
-      finalPrompt = `Please fix this code and explain the changes:\n\n${storedCode}`;
+      //finalPrompt = `Please fix this code and explain the changes:\n\n${storedCode}`;
+      finalPrompt = `Identify and correct only syntax and logical errors in the following code.
+Rules:
+Focus solely on fixing syntax errors, incorrect variables, and logical mistakes.
+Ensure there are no remaining errors after your fix.
+Return only the corrected code without any explanations.
+Provide a list of the errors you found before presenting the corrected code.
+Code:\n\n${storedCode}`;
     } else if (prompt.startsWith("/explain")) {
       finalPrompt = `Please explain this code:\n\n${storedCode}`;
     } else if (prompt.startsWith("/test")) {
-      finalPrompt = `Please write test cases for this code:\n\n${storedCode}`;
+      finalPrompt = `Please write test cases prefer for this code:\n\n${storedCode}`;
     }
   }
 
@@ -180,7 +207,7 @@ async function submit() {
     const res = await fetch(LOCAL_OLLAMA + `/api/chat`, {
       method: "POST",
       body: JSON.stringify({
-        model: state.model,
+        model: state.chatModel,
         messages: state.messages,
         stream: true,
       }),
@@ -200,7 +227,7 @@ async function submit() {
     const responseMessage = {
       role: "assistant",
       content: "",
-      model: state.model,
+      model: state.chatModel,
     };
     state.messages.push(responseMessage);
 
@@ -242,14 +269,29 @@ async function submit() {
 
 // Draws the model picker with models from the state
 function drawModelPicker() {
-  $models.innerHTML = "";
+  const $chatModels = document.getElementById("chat-models");
+  const $completionModels = document.getElementById("completion-models");
+  
+  $chatModels.innerHTML = "";
+  $completionModels.innerHTML = "";
+  
+  state.models.forEach((model) => {
+    const chatOption = document.createElement("option");
+    chatOption.value = model;
+    chatOption.textContent = model;
+    if (model === state.chatModel) {
+      chatOption.selected = true;
+    }
+    $chatModels.appendChild(chatOption);
 
-  for (const model of state.models) {
-    const $opt = document.createElement("option");
-    $opt.innerText = model;
-    $opt.value = model;
-    $models.appendChild($opt);
-  }
+    const completionOption = document.createElement("option");
+    completionOption.value = model;
+    completionOption.textContent = model;
+    if (model === state.completionModel) {
+      completionOption.selected = true;
+    }
+    $completionModels.appendChild(completionOption);
+  });
 }
 
 // Retrieves a list of locally isntalled models and updates the state
@@ -259,7 +301,8 @@ async function getModels() {
   const body = await res.json();
   console.log(res, body);
   state.models = body.models.map((m) => m.name);
-  state.model = state.model ?? state.models[0];
+  state.chatModel = state.chatModel ?? state.models[0];
+  state.completionModel = state.completionModel ?? state.models[0];
   drawModelPicker();
   setLoading(false);
 }
@@ -278,3 +321,4 @@ document.getElementById("clear-button").addEventListener("click", function () {
     type: "clearStoredCode",
   });
 });
+

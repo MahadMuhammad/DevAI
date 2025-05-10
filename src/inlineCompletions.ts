@@ -82,6 +82,15 @@ export function initializeInlineCompletions(
   );
   disposables.push(provider);
 
+  // Add command to update completion model
+  const updateModelCommand = vscode.commands.registerCommand(
+    "chat.updateCompletionModel",
+    (model: string) => {
+      updateCompletionModel(model);
+    }
+  );
+  disposables.push(updateModelCommand);
+
   // Initialize configuration
   updateConfiguration();
 
@@ -126,8 +135,7 @@ function updateConfiguration(): void {
  * Main inline completion provider class
  */
 class OllamaInlineCompletionProvider
-  implements vscode.InlineCompletionItemProvider
-{
+  implements vscode.InlineCompletionItemProvider {
   async provideInlineCompletionItems(
     document: vscode.TextDocument,
     position: vscode.Position,
@@ -224,14 +232,14 @@ class OllamaInlineCompletionProvider
 
     // Apply additional cleaning to remove unwanted patterns
     completion = this.cleanCompletionText(completion);
-    
+
     // Special handling for Python code blocks that may have survived the cleaning
     const pythonBlockMatch = /^```python\s*\n([\s\S]+?)```\s*$/m.exec(completion);
     if (pythonBlockMatch && pythonBlockMatch[1]) {
       console.log("Found Python code block after cleaning, extracting content");
       completion = pythonBlockMatch[1].trim();
     }
-    
+
     // Final check to remove any stray backticks
     completion = completion.replace(/^`+|`+$/g, "");
 
@@ -293,7 +301,7 @@ class OllamaInlineCompletionProvider
     // Test the endpoint connection first
     try {
       await this.testEndpointConnection(endpoint);
-      
+
       // Check if the model exists on the server
       const modelExists = await this.checkModelExists(endpoint, model);
       if (!modelExists) {
@@ -347,7 +355,7 @@ class OllamaInlineCompletionProvider
     const isPythonFile = fileExtension === "py" || fileExtension === "python";
 
     // Create a better structured prompt
-    const promptText = isPythonFile 
+    const promptText = isPythonFile
       ? this.createPythonPrompt(languageHint, prefix)
       : this.createGenericPrompt(languageHint, fileExtension, prefix);
 
@@ -422,9 +430,9 @@ class OllamaInlineCompletionProvider
             reject(new Error(`HTTP error ${res.statusCode}`));
             return;
           }
-          
+
           // Consume response data to free up memory
-          res.on('data', () => {});
+          res.on('data', () => { });
           res.on('end', () => {
             resolve();
           });
@@ -522,7 +530,7 @@ class OllamaInlineCompletionProvider
 
               // Get the response text
               let responseText = parsedResponse.response || "";
-              
+
               // Strip markdown code blocks if present
               responseText = this.stripMarkdownCodeBlocks(responseText);
 
@@ -590,24 +598,24 @@ class OllamaInlineCompletionProvider
         const client = url.protocol === "https:" ? https : http;
         const req = client.request(options, (res) => {
           let responseData = "";
-          
+
           res.on('data', (chunk) => {
             responseData += chunk;
           });
-          
+
           res.on('end', () => {
             if (res.statusCode && res.statusCode >= 400) {
               console.error(`Error checking model existence: HTTP ${res.statusCode}`);
               resolve(false);
               return;
             }
-            
+
             try {
               const response = JSON.parse(responseData);
               if (response.models) {
                 const models = response.models;
-                const modelExists = models.some((m: any) => 
-                  m.name === modelName || 
+                const modelExists = models.some((m: any) =>
+                  m.name === modelName ||
                   `${m.name}:${m.tag}` === modelName
                 );
                 resolve(modelExists);
@@ -651,14 +659,14 @@ class OllamaInlineCompletionProvider
     if (fullMatch && fullMatch[1]) {
       return fullMatch[1].trim();
     }
-    
+
     // If not a complete wrapper, handle partial code blocks
     // Remove opening code block markers like ```python, ```javascript, ```ts, etc.
     let cleaned = text.replace(/^```[\w]*\n?/m, "");
-    
+
     // Remove closing code block markers
     cleaned = cleaned.replace(/\n?```$/m, "");
-    
+
     // If we still have code blocks in the text, extract just the code
     const codeBlockRegex = /```[\w]*\n?([\s\S]*?)\n?```/gm;
     const match = codeBlockRegex.exec(text);
@@ -666,10 +674,10 @@ class OllamaInlineCompletionProvider
       // If we matched a code block, just return the content inside it
       cleaned = match[1].trim();
     }
-    
+
     console.log("Original response:", text);
     console.log("Cleaned response:", cleaned);
-    
+
     return cleaned;
   }
 
@@ -679,14 +687,14 @@ class OllamaInlineCompletionProvider
   private cleanCompletionText(text: string): string {
     // Remove any remaining markdown formatting elements that might have been missed
     let cleaned = text;
-    
+
     // Handle markdown code blocks with language specifiers
     // This will match ```python, ```javascript, etc. at the beginning of the text
     cleaned = cleaned.replace(/^```[\w]*\s*\n?/m, "");
-    
+
     // Handle closing code block markers at the end of the text
     cleaned = cleaned.replace(/\n?```\s*$/m, "");
-    
+
     // Also remove any complete code blocks that might be in the middle of the text
     const codeBlockRegex = /```[\w]*\n?([\s\S]*?)\n?```/g;
     let match;
@@ -696,29 +704,29 @@ class OllamaInlineCompletionProvider
       const codeContent = match[1];
       cleaned = cleaned.replace(fullMatch, codeContent);
     }
-    
+
     // Remove trailing/leading backticks if they exist on their own line
     cleaned = cleaned.replace(/^`+\s*$/gm, "").replace(/^\s*`+$/gm, "");
-    
+
     // Remove standalone backticks
     cleaned = cleaned.replace(/^`+$/gm, "");
-    
+
     // Remove markdown language specifiers like "python" or "javascript:" that might appear at the start
     cleaned = cleaned.replace(/^(python|javascript|typescript|java|c#|cpp|js|ts|html|css|ruby|go|rust|php|swift|bash|shell|powershell|sql)[:]*\s*$/im, "");
-    
+
     // Remove any lines that only contain comments about "code completion" or similar
     cleaned = cleaned.replace(/^\s*\/\/\s*(code|completion|output|result|response).*$/gim, "");
     cleaned = cleaned.replace(/^\s*#\s*(code|completion|output|result|response).*$/gim, ""); // For Python comments
-    
+
     // Clean up any Python docstring style comments
     cleaned = cleaned.replace(/^"""\s*(code completion|completion|suggestion)[\s\S]*?"""\s*$/gim, "");
-    
+
     // Trim leading and trailing whitespace
     cleaned = cleaned.trim();
-    
+
     console.log("Additional cleaning - before:", text);
     console.log("Additional cleaning - after:", cleaned);
-    
+
     return cleaned;
   }
 
@@ -785,4 +793,10 @@ async function inlineAccepted(serialNumber: number): Promise<void> {
 function inlineRejected(reason: string): void {
   // Handle rejection silently
   console.log(`Completion rejected: ${reason}`);
+}
+
+// Add event handler for model changes
+export function updateCompletionModel(model: string) {
+  completionModelName = model;
+  updateStatusBar();
 }

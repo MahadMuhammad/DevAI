@@ -79,7 +79,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       const selection = editor.selection;
       const selectedText = editor.document.getText(selection);
-      
+
       if (!selectedText) {
         vscode.window.showErrorMessage("No text selected");
         return;
@@ -130,7 +130,7 @@ export function activate(context: vscode.ExtensionContext) {
   vscode.window.onDidChangeTextEditorSelection((event) => {
     const editor = event.textEditor;
     const selection = editor.selection;
-    
+
     if (!selection.isEmpty) {
       const selectedText = editor.document.getText(selection);
       provider.sendSelectedCodeToWebview(selectedText); // This now just stores the code
@@ -139,14 +139,14 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 // This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() { }
 
 class OllamaChatProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "chat.chat";
   private view?: vscode.WebviewView;
   private selectedCode: string = '';
 
-  constructor(private readonly extensionUri: vscode.Uri) {}
+  constructor(private readonly extensionUri: vscode.Uri) { }
 
   private _onDidChange: vscode.EventEmitter<
     vscode.WebviewViewProvider | undefined | void
@@ -393,9 +393,20 @@ class OllamaChatProvider implements vscode.WebviewViewProvider {
               <button type="submit">Send Message</button>
               <button type="button" id="clear-button">Clear Chat</button>
             </div>
-            <select id="models" name="model">
-              <option>Select Model</option>
-            </select>
+            <div class="model-selectors">
+              <div class="model-group">
+                <label>Chat Model:</label>
+                <select id="chat-models" name="chat-model">
+                  <option>Select Chat Model</option>
+                </select>
+              </div>
+              <div class="model-group">
+                <label>Completion Model:</label>
+                <select id="completion-models" name="completion-model">
+                  <option>Select Completion Model</option>
+                </select>
+              </div>
+            </div>
           </form>
         </div>
         
@@ -403,6 +414,14 @@ class OllamaChatProvider implements vscode.WebviewViewProvider {
         <script nonce="${nonce}" src="${scriptUri}"></script>
       </body>
       </html>`;
+  }
+
+  // Add new method to handle model selection
+  private handleModelSelection(model: string, isCompletionModel: boolean) {
+    const config = vscode.workspace.getConfiguration('ollama');
+    if (isCompletionModel) {
+      config.update('model', model, true);
+    }
   }
 }
 
