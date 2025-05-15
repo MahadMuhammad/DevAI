@@ -17,7 +17,7 @@ export function activate(context: vscode.ExtensionContext) {
         console.log("Manually triggered inline completions");
       } catch (error) {
         console.error("Failed to trigger inline completions:", error);
-        vscode.window.showErrorMessage(`Failed to trigger completions: ${error}`);
+        // Silent failure - log to console only
       }
     })
   );
@@ -73,7 +73,8 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("chat.fix", async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
-        vscode.window.showErrorMessage("No active editor found");
+        // Silent operation - log to console only
+        console.error("No active editor found");
         return;
       }
 
@@ -81,7 +82,8 @@ export function activate(context: vscode.ExtensionContext) {
       const selectedText = editor.document.getText(selection);
       
       if (!selectedText) {
-        vscode.window.showErrorMessage("No text selected");
+        // Silent operation - log to console only
+        console.error("No text selected");
         return;
       }
 
@@ -95,13 +97,15 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("chat.explain", async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
-        vscode.window.showErrorMessage("No active editor found");
+        // Silent operation - log to console only
+        console.error("No active editor found");
         return;
       }
       const selection = editor.selection;
       const selectedText = editor.document.getText(selection);
       if (!selectedText) {
-        vscode.window.showErrorMessage("No text selected");
+        // Silent operation - log to console only
+        console.error("No text selected");
         return;
       }
       provider.sendSelectedCodeToWebview(selectedText);
@@ -113,13 +117,15 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand("chat.test", async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
-        vscode.window.showErrorMessage("No active editor found");
+        // Silent operation - log to console only
+        console.error("No active editor found");
         return;
       }
       const selection = editor.selection;
       const selectedText = editor.document.getText(selection);
       if (!selectedText) {
-        vscode.window.showErrorMessage("No text selected");
+        // Silent operation - log to console only
+        console.error("No text selected");
         return;
       }
       provider.sendSelectedCodeToWebview(selectedText);
@@ -174,9 +180,9 @@ class OllamaChatProvider implements vscode.WebviewViewProvider {
     this.selectedCode = '';
   }
 
-  // Add method to show error message in VS Code
+  // Add method to log error to console without showing a message
   public showError(message: string) {
-    vscode.window.showErrorMessage(message);
+    console.error(`DevAI Chat Error: ${message}`);
   }
 
   public resolveWebviewView(webviewView: vscode.WebviewView) {
@@ -201,9 +207,64 @@ class OllamaChatProvider implements vscode.WebviewViewProvider {
         case 'clearStoredCode':
           this.clearSelectedCode();
           break;
-        case 'error':
-          vscode.window.showErrorMessage(message.message);
+        case 'insertAtCursor':
+          this.insertCodeAtCursor(message.code);
           break;
+        case 'error':
+          // Log error to console instead of showing notification
+          console.error(`Webview Error: ${message.message}`);
+          break;
+      }
+    });
+  }
+
+  /**
+   * Insert code at the current cursor position in the active editor
+   * @param code The code to insert
+   */
+  private insertCodeAtCursor(code: string): void {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      console.error('No active editor found when trying to insert code');
+      
+      // Inform the webview that insertion failed
+      if (this.view) {
+        this.view.webview.postMessage({
+          type: 'insertError',
+          message: 'No active editor found. Open a file first and try again.'
+        });
+      }
+      return;
+    }
+
+    editor.edit((editBuilder) => {
+      // Insert at each cursor position (supports multi-cursor)
+      editor.selections.forEach(selection => {
+        // If there's a selection, replace it
+        if (!selection.isEmpty) {
+          editBuilder.replace(selection, code);
+        } else {
+          // Otherwise insert at cursor position
+          editBuilder.insert(selection.active, code);
+        }
+      });
+    }).then(success => {
+      if (!success) {
+        console.error('Failed to insert code at cursor');
+        // Inform the webview that insertion failed
+        if (this.view) {
+          this.view.webview.postMessage({
+            type: 'insertError',
+            message: 'Failed to insert code'
+          });
+        }
+      } else {
+        // If success, inform the webview
+        if (this.view) {
+          this.view.webview.postMessage({
+            type: 'insertSuccess'
+          });
+        }
       }
     });
   }
@@ -303,6 +364,15 @@ class OllamaChatProvider implements vscode.WebviewViewProvider {
             background-color: var(--vscode-editor-inactiveSelectionBackground);
           }
           
+          .message__error {
+            background-color: var(--vscode-inputValidation-errorBackground, rgba(255, 0, 0, 0.1));
+            border-left: 3px solid var(--vscode-errorForeground, #f14c4c);
+            color: var(--vscode-errorForeground, #f14c4c);
+            font-size: 12px;
+            padding: 8px;
+            margin-top: 8px;
+          }
+          
           #chat {
             display: flex;
             flex-direction: column;
@@ -358,10 +428,78 @@ class OllamaChatProvider implements vscode.WebviewViewProvider {
             padding: 8px 12px;
             border-radius: 3px;
             overflow-x: auto;
+            position: relative;
+            border: 1px solid var(--vscode-panel-border);
           }
           
           .code-block pre {
             margin: 0;
+            font-family: var(--vscode-editor-font-family, 'Consolas, monospace');
+            font-size: var(--vscode-editor-font-size, 14px);
+          }
+          
+          .code-block-header {
+            display: flex;
+            justify-content: flex-end;
+            padding: 4px;
+            background-color: rgba(0, 0, 0, 0.1);
+            margin: -8px -12px 8px -12px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            gap: 6px;
+          }
+          
+          .copy-button, .insert-button {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            border-radius: 2px;
+            padding: 2px 8px;
+            font-size: 11px;
+            cursor: pointer;
+            opacity: 0.8;
+            transition: opacity 0.2s, background-color 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          
+          .copy-button:hover, .insert-button:hover {
+            opacity: 1;
+            background-color: var(--vscode-button-hoverBackground);
+          }
+          
+          .copy-button:before {
+            content: "";
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            margin-right: 3px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='white'%3E%3Cpath d='M4 4v8h8V4H4zm7 7H5V5h6v6zM3 3v9h9V3H3zm1-1h8v1H4V2zm9 1v10H3V2h1V1h8v1h1z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-size: contain;
+          }
+          
+          .insert-button:before {
+            content: "";
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            margin-right: 3px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='white'%3E%3Cpath d='M3.5 7h9L8 11.5 3.5 7z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-size: contain;
+          }
+          
+          .copy-success {
+            background-color: var(--vscode-editorGutter-addedBackground, #587c0c);
+          }
+          
+          .insert-success {
+            background-color: var(--vscode-gitDecoration-addedResourceForeground, #4d9375);
+          }
+          
+          .copy-success:before {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16' fill='white'%3E%3Cpath d='M14.431 3.323l-8.47 10-.79-.036-3.35-4.77.818-.574 2.978 4.24 8.051-9.506.764.646z'/%3E%3C/svg%3E");
           }
         </style>
       </head>

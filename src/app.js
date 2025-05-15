@@ -84,11 +84,174 @@ function drawFeed() {
     $title.innerHTML =
       message.role == "user" ? "You" : `🤖 Assistant <i>(${message.model})</i>`;
     const $body = document.createElement("p");
+    
+    // Parse the message content with marked
     $body.innerHTML = marked.parse(message.content, { gfm: false });
+    
     $message.appendChild($title);
     $message.appendChild($body);
     $feed.appendChild($message);
+    
+    // Add copy buttons to all code blocks if this is an assistant message
+    if (message.role === "assistant") {
+      // First, properly handle pre blocks which contain actual code blocks
+      const preBlocks = $message.querySelectorAll('pre');
+      preBlocks.forEach((preBlock, index) => {
+        // Create a wrapper if it's not already in one
+        let wrapper;
+        if (preBlock.parentElement.classList.contains('code-block')) {
+          wrapper = preBlock.parentElement;
+        } else {
+          wrapper = document.createElement('div');
+          wrapper.classList.add('code-block');
+          preBlock.parentNode.insertBefore(wrapper, preBlock);
+          wrapper.appendChild(preBlock);
+        }
+        
+        // Create header with copy and insert buttons
+        const header = document.createElement('div');
+        header.classList.add('code-block-header');
+        
+        // Add copy button
+        const copyButton = document.createElement('button');
+        copyButton.classList.add('copy-button');
+        copyButton.textContent = 'Copy';
+        copyButton.dataset.index = index;
+        copyButton.addEventListener('click', function() {
+          const code = this.parentElement.nextElementSibling.textContent;
+          copyToClipboard(code, this);
+        });
+        
+        // Add insert button
+        const insertButton = document.createElement('button');
+        insertButton.classList.add('insert-button');
+        insertButton.textContent = 'Insert';
+        insertButton.dataset.index = index;
+        insertButton.addEventListener('click', function() {
+          const code = this.parentElement.nextElementSibling.textContent;
+          insertAtCursor(code, this);
+        });
+        
+        header.appendChild(copyButton);
+        header.appendChild(insertButton);
+        wrapper.insertBefore(header, preBlock);
+      });
+      
+      // Then handle standalone code blocks (code elements that are not inside pre)
+      const standaloneCodeBlocks = $message.querySelectorAll('code:not(pre code)');
+      standaloneCodeBlocks.forEach((codeBlock, index) => {
+        // Only wrap code blocks that are not inline (have their own paragraph)
+        if (codeBlock.parentElement.tagName === 'P' && 
+            codeBlock.parentElement.childNodes.length === 1 &&
+            codeBlock.textContent.length > 20) { // Only add for substantial code blocks
+        
+          // Create a wrapper if it's not already in one
+          let wrapper;
+          if (codeBlock.parentElement.classList.contains('code-block')) {
+            wrapper = codeBlock.parentElement;
+          } else {
+            wrapper = document.createElement('div');
+            wrapper.classList.add('code-block');
+            codeBlock.parentNode.insertBefore(wrapper, codeBlock);
+            wrapper.appendChild(codeBlock);
+          }
+          
+          // Create header with copy and insert buttons
+          const header = document.createElement('div');
+          header.classList.add('code-block-header');
+          
+          // Add copy button
+          const copyButton = document.createElement('button');
+          copyButton.classList.add('copy-button');
+          copyButton.textContent = 'Copy';
+          copyButton.dataset.index = index;
+          copyButton.addEventListener('click', function() {
+            const code = this.parentElement.nextElementSibling.textContent;
+            copyToClipboard(code, this);
+          });
+          
+          // Add insert button
+          const insertButton = document.createElement('button');
+          insertButton.classList.add('insert-button');
+          insertButton.textContent = 'Insert';
+          insertButton.dataset.index = index;
+          insertButton.addEventListener('click', function() {
+            const code = this.parentElement.nextElementSibling.textContent;
+            insertAtCursor(code, this);
+          });
+          
+          header.appendChild(copyButton);
+          header.appendChild(insertButton);
+          wrapper.insertBefore(header, codeBlock);
+        }
+      });
+    }
   }
+  
+  // Scroll to the bottom of the feed
+  $feed.scrollTop = $feed.scrollHeight;
+}
+
+// Function to copy text to clipboard
+function copyToClipboard(text, button) {
+  // Trim any extra whitespace
+  const codeToCopy = text.trim();
+  
+  // Copy to clipboard using the Clipboard API
+  navigator.clipboard.writeText(codeToCopy).then(
+    function() {
+      // Success feedback
+      const originalText = button.textContent;
+      button.textContent = 'Copied!';
+      button.classList.add('copy-success');
+      
+      // Reset after 1.5 seconds
+      setTimeout(() => {
+        button.textContent = originalText;
+        button.classList.remove('copy-success');
+      }, 1500);
+    }, 
+    function(err) {
+      console.error('Could not copy text: ', err);
+      
+      // Fallback for browsers that don't support clipboard API
+      const textarea = document.createElement('textarea');
+      textarea.value = codeToCopy;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'absolute';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      
+      try {
+        textarea.select();
+        const successful = document.execCommand('copy');
+        
+        if (successful) {
+          const originalText = button.textContent;
+          button.textContent = 'Copied!';
+          button.classList.add('copy-success');
+          
+          setTimeout(() => {
+            button.textContent = originalText;
+            button.classList.remove('copy-success');
+          }, 1500);
+        } else {
+          button.textContent = 'Failed';
+          setTimeout(() => {
+            button.textContent = 'Copy';
+          }, 1500);
+        }
+      } catch (err) {
+        console.error('Fallback: Could not copy text: ', err);
+        button.textContent = 'Failed';
+        setTimeout(() => {
+          button.textContent = 'Copy';
+        }, 1500);
+      }
+      
+      document.body.removeChild(textarea);
+    }
+  );
 }
 
 // Clears the chatbox
@@ -116,6 +279,21 @@ window.addEventListener("message", (event) => {
   switch (message.type) {
     case "storeCode":
       storedCode = message.code;
+      break;
+    case "insertError":
+      // Show error in feed if provided
+      if (message.message) {
+        const errorMessage = document.createElement("div");
+        errorMessage.classList.add("message", "message__error");
+        errorMessage.textContent = `Error: ${message.message}`;
+        $feed.appendChild(errorMessage);
+        
+        // Scroll to the bottom to show the error
+        $feed.scrollTop = $feed.scrollHeight;
+      }
+      break;
+    case "insertSuccess":
+      // Optional: Could add a quick success toast/notification here
       break;
   }
 });
@@ -154,7 +332,13 @@ async function submit() {
     }
 
     if (prompt.startsWith("/fix")) {
-      finalPrompt = `Please fix this code and explain the changes:\n\n${storedCode}`;
+      finalPrompt = `Identify and correct only syntax and logical errors in the following code.
+      Rules:
+      Focus solely on fixing syntax errors, incorrect variables, and logical mistakes.
+      Ensure there are no remaining errors after your fix.
+      Return only the corrected code without any explanations.
+      Provide a list of the errors you found before presenting the corrected code.
+      Code:\n\n${storedCode}`;
     } else if (prompt.startsWith("/explain")) {
       finalPrompt = `Please explain this code:\n\n${storedCode}`;
     } else if (prompt.startsWith("/test")) {
@@ -278,3 +462,60 @@ document.getElementById("clear-button").addEventListener("click", function () {
     type: "clearStoredCode",
   });
 });
+
+// Function to insert code at the current cursor position in the editor
+function insertAtCursor(text, button) {
+  // Trim any extra whitespace
+  const codeToInsert = text.trim();
+  
+  // Show loading state
+  const originalText = button.textContent;
+  button.textContent = 'Inserting...';
+  
+  // Send message to extension to insert code at cursor
+  vscode.postMessage({
+    type: 'insertAtCursor',
+    code: codeToInsert
+  });
+  
+  // Set up a listener for the response, but only for this specific insertion
+  const messageHandler = (event) => {
+    const message = event.data;
+    if (message.type === 'insertSuccess') {
+      // Show success feedback
+      button.textContent = 'Inserted!';
+      button.classList.add('insert-success');
+      
+      // Remove this specific listener after handling the response
+      window.removeEventListener('message', messageHandler);
+      
+      // Reset after 1.5 seconds
+      setTimeout(() => {
+        button.textContent = originalText;
+        button.classList.remove('insert-success');
+      }, 1500);
+    } 
+    else if (message.type === 'insertError') {
+      // Show error feedback on the button
+      button.textContent = 'Failed';
+      
+      // Remove this specific listener after handling the response
+      window.removeEventListener('message', messageHandler);
+      
+      // Reset after 1.5 seconds
+      setTimeout(() => {
+        button.textContent = originalText;
+      }, 1500);
+    }
+  };
+  
+  window.addEventListener('message', messageHandler);
+  
+  // Set a timeout to remove the listener and reset the button if no response
+  setTimeout(() => {
+    window.removeEventListener('message', messageHandler);
+    if (button.textContent === 'Inserting...') {
+      button.textContent = originalText;
+    }
+  }, 3000);
+}

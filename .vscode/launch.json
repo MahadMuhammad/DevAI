@@ -15,7 +15,7 @@
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
 				"${workspaceFolder}/playground.py",
-				"--disable-extensions"
+				// "--disable-extensions"
 			],
 			"outFiles": [
 				"${workspaceFolder}/dist/**/*.js"

@@ -4,11 +4,14 @@ import * as http from "http";
 import * as https from "https";
 
 // Track global state for inline completions
-let completionModelName = "gemma2:2b-instruct-q4_K_M";
+// let completionModelName = "codegemma:7b-instruct-q4_K_M";
+let completionModelName = "qwen2.5:3b";
 let manualCompletionCount = 0;
 let completionSerialCounter = 6000;
 let statusBarItem: vscode.StatusBarItem | undefined;
 let lastCompletionData: any = null;
+// Store extension context for global state access
+let extensionContext: vscode.ExtensionContext;
 
 /**
  * Initialize the inline completions provider
@@ -19,6 +22,9 @@ export function initializeInlineCompletions(
   context: vscode.ExtensionContext
 ): vscode.Disposable[] {
   console.log("Initializing Ollama inline completions");
+  
+  // Store context for later use
+  extensionContext = context;
 
   const disposables: vscode.Disposable[] = [];
 
@@ -55,9 +61,10 @@ export function initializeInlineCompletions(
       const config = vscode.workspace.getConfiguration("ollama");
       const currentPause = config.get<boolean>("pauseCompletion", false);
       config.update("pauseCompletion", !currentPause, true);
-      vscode.window.showInformationMessage(
-        `Ollama completions ${!currentPause ? "paused" : "resumed"}`
-      );
+      // Silent operation - no popups
+      // vscode.window.showInformationMessage(
+      //   `Ollama completions ${!currentPause ? "paused" : "resumed"}`
+      // );
       updateStatusBar(!currentPause);
     }
   );
@@ -286,9 +293,16 @@ class OllamaInlineCompletionProvider
       "endpoint",
       "http://74.225.223.193:11435"
     );
-    const model = config.get<string>("model", "gemma2:2b-instruct-q4_K_M");
-    const maxTokens = config.get<number>("maxTokens", 50);
+    const model = config.get<string>("model", "qwen2.5:3b");
+    const maxTokens = config.get<number>("maxTokens", 30);
     const baseTemperature = config.get<number>("temperature", 0.2);
+
+    // Check if we're using a large model with high maxTokens
+    const isLargeModel = model.includes("7b") || model.includes("13b") || model.includes("70b");
+    if (isLargeModel && maxTokens > 30 && !calledManually) {
+      console.warn(`Using large model ${model} with high maxTokens (${maxTokens}). This might cause timeouts.`);
+      // Only log warnings to console, no popups
+    }
 
     // Test the endpoint connection first
     try {
@@ -297,12 +311,12 @@ class OllamaInlineCompletionProvider
       // Check if the model exists on the server
       const modelExists = await this.checkModelExists(endpoint, model);
       if (!modelExists) {
-        vscode.window.showErrorMessage(`Model '${model}' is not available on the Ollama server. Please check your configuration.`);
+        // Log error but don't show popup
+        console.error(`Model '${model}' is not available on the Ollama server.`);
         return ["", -1];
       }
     } catch (error) {
       console.error("Endpoint connection test failed:", error);
-      vscode.window.showErrorMessage(`Cannot connect to Ollama API at ${endpoint}: ${error}`);
       return ["", -1];
     }
 
@@ -343,13 +357,22 @@ class OllamaInlineCompletionProvider
       languageHint = `// File type: ${fileExtension}\n`;
     }
 
-    // Check if we're dealing with Python code
+    // Check if we're dealing with specific file types
     const isPythonFile = fileExtension === "py" || fileExtension === "python";
+    const isTypeScriptFile = fileExtension === "ts" || fileExtension === "tsx";
+    const isJavaScriptFile = fileExtension === "js" || fileExtension === "jsx";
 
-    // Create a better structured prompt
-    const promptText = isPythonFile 
-      ? this.createPythonPrompt(languageHint, prefix)
-      : this.createGenericPrompt(languageHint, fileExtension, prefix);
+    // Create a better structured prompt based on file type
+    let promptText = "";
+    if (isPythonFile) {
+      promptText = this.createPythonPrompt(languageHint, prefix);
+    } else if (isTypeScriptFile) {
+      promptText = this.createTypeScriptPrompt(languageHint, prefix);
+    } else if (isJavaScriptFile) {
+      promptText = this.createJavaScriptPrompt(languageHint, prefix);
+    } else {
+      promptText = this.createGenericPrompt(languageHint, fileExtension, prefix);
+    }
 
     console.log("Prompt text:", promptText);
     console.log("Model:", model);
@@ -407,14 +430,21 @@ class OllamaInlineCompletionProvider
   private async testEndpointConnection(endpoint: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       try {
+        // Get timeout settings from configuration
+        const config = vscode.workspace.getConfiguration("ollama");
+        const standardTimeoutSec = config.get<number>("standardModelTimeout", 60);
+        const timeoutMs = standardTimeoutSec * 1000;
+        
         const url = new URL(endpoint);
         const options = {
           hostname: url.hostname,
           port: url.port || (url.protocol === "https:" ? 443 : 80),
           path: "/api/version",
           method: "GET",
-          timeout: 30000
+          timeout: timeoutMs  // Use configured timeout
         };
+
+        console.log(`Testing endpoint connection with ${timeoutMs/1000} second timeout`);
 
         const client = url.protocol === "https:" ? https : http;
         const req = client.request(options, (res) => {
@@ -458,9 +488,18 @@ class OllamaInlineCompletionProvider
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       try {
+        // Check if we're using a large model
+        const isLargeModel = model.includes("7b") || model.includes("13b") || model.includes("70b");
+        
         if (statusBarItem) {
-          statusBarItem.text = "$(sync~spin) Ollama";
-          statusBarItem.tooltip = "Fetching completion...";
+          // Show different message for large models
+          if (isLargeModel) {
+            statusBarItem.text = "$(sync~spin) Ollama (Large Model)";
+            statusBarItem.tooltip = `Using ${model} - this may take longer than usual`;
+          } else {
+            statusBarItem.text = "$(sync~spin) Ollama";
+            statusBarItem.tooltip = "Fetching completion...";
+          }
         }
 
         const url = new URL(endpoint);
@@ -473,6 +512,33 @@ class OllamaInlineCompletionProvider
         });
 
         console.log(`Sending request to ${url.toString()}`);
+        console.log(`Using model: ${model}, this${isLargeModel ? ' IS' : ' is NOT'} a large model`);
+
+        // No notification for large models
+        // if (isLargeModel) {
+        //   vscode.window.showInformationMessage(
+        //     `Using ${model} model - completions may take longer to generate.`
+        //   );
+        // }
+
+        // Setup a timer to update status bar during long requests
+        let elapsed = 0;
+        const progressTimer = isLargeModel ? setInterval(() => {
+          elapsed += 1;
+          if (statusBarItem) {
+            statusBarItem.text = `$(sync~spin) Ollama (${elapsed}s)`;
+            statusBarItem.tooltip = `Waiting for ${model} model (${elapsed} seconds elapsed)`;
+          }
+        }, 1000) : null;
+
+        // Get timeout settings from configuration
+        const config = vscode.workspace.getConfiguration("ollama");
+        const largeModelTimeoutSec = config.get<number>("largeModelTimeout", 180);
+        const standardModelTimeoutSec = config.get<number>("standardModelTimeout", 60);
+        
+        const timeoutMs = isLargeModel 
+          ? largeModelTimeoutSec * 1000 
+          : standardModelTimeoutSec * 1000;
 
         const options = {
           hostname: url.hostname,
@@ -483,8 +549,10 @@ class OllamaInlineCompletionProvider
             "Content-Type": "application/json",
             "Content-Length": Buffer.byteLength(data),
           },
-          timeout: 30000 // Add timeout to prevent hanging requests
+          timeout: timeoutMs
         };
+
+        console.log(`Using timeout of ${timeoutMs/1000} seconds for ${isLargeModel ? 'large' : 'standard'} model`);
 
         const client = url.protocol === "https:" ? https : http;
 
@@ -496,6 +564,11 @@ class OllamaInlineCompletionProvider
           });
 
           res.on("end", () => {
+            // Clear the timer if it exists
+            if (progressTimer) {
+              clearInterval(progressTimer);
+            }
+
             if (statusBarItem) {
               statusBarItem.text = `$(sparkle) Ollama (${model})`;
               statusBarItem.tooltip = `Using Ollama with ${model} model`;
@@ -505,7 +578,7 @@ class OllamaInlineCompletionProvider
               if (res.statusCode && res.statusCode >= 400) {
                 const errorMsg = `HTTP error ${res.statusCode}: ${responseData}`;
                 console.error(errorMsg);
-                vscode.window.showErrorMessage(`Ollama API error: ${errorMsg}`);
+                // No popup errors
                 reject(new Error(errorMsg));
                 return;
               }
@@ -515,7 +588,7 @@ class OllamaInlineCompletionProvider
               if (!parsedResponse.response) {
                 const errorMsg = "No response from Ollama API";
                 console.error(errorMsg);
-                vscode.window.showErrorMessage(`Ollama API error: ${errorMsg}`);
+                // No popup errors
                 reject(new Error(errorMsg));
                 return;
               }
@@ -530,30 +603,52 @@ class OllamaInlineCompletionProvider
               resolve(responseText);
             } catch (error) {
               console.error("Error parsing Ollama API response:", error);
-              vscode.window.showErrorMessage(`Failed to parse Ollama API response: ${error}`);
+              // No popup errors
               reject(error);
             }
           });
         });
 
         req.on("error", (error) => {
+          // Clear the timer if it exists
+          if (progressTimer) {
+            clearInterval(progressTimer);
+          }
+
           if (statusBarItem) {
             statusBarItem.text = "$(error) Ollama";
             statusBarItem.tooltip = `Error: ${error.message}`;
           }
-          console.error("Ollama API request error:", error);
-          vscode.window.showErrorMessage(`Ollama API request failed: ${error.message}`);
+
+          // Log error to console only, no popups
+          if (isLargeModel && (error.message.includes("timeout") || error.message.includes("hang up"))) {
+            console.error(`The ${model} model timed out. Consider using a smaller model or decreasing max tokens.`);
+          } else {
+            console.error("Ollama API request error:", error);
+          }
+          
           reject(error);
         });
 
         // Add timeout handling
         req.on("timeout", () => {
+          // Clear the timer if it exists
+          if (progressTimer) {
+            clearInterval(progressTimer);
+          }
+
           if (statusBarItem) {
             statusBarItem.text = "$(error) Ollama (Timeout)";
             statusBarItem.tooltip = "Request timed out";
           }
-          console.error("Ollama API request timed out");
-          vscode.window.showErrorMessage("Ollama API request timed out");
+
+          // Log to console only, no popups
+          if (isLargeModel) {
+            console.error(`The ${model} model timed out after ${options.timeout/1000} seconds.`);
+          } else {
+            console.error("Ollama API request timed out");
+          }
+          
           req.destroy();
           reject(new Error("Request timed out"));
         });
@@ -566,7 +661,7 @@ class OllamaInlineCompletionProvider
           statusBarItem.tooltip = `Error: ${error}`;
         }
         console.error("Exception in Ollama API call:", error);
-        vscode.window.showErrorMessage(`Failed to call Ollama API: ${error}`);
+        // No popup errors
         reject(error);
       }
     });
@@ -578,14 +673,21 @@ class OllamaInlineCompletionProvider
   private async checkModelExists(endpoint: string, modelName: string): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
       try {
+        // Get timeout settings from configuration
+        const config = vscode.workspace.getConfiguration("ollama");
+        const standardTimeoutSec = config.get<number>("standardModelTimeout", 60);
+        const timeoutMs = standardTimeoutSec * 1000;
+        
         const url = new URL(endpoint);
         const options = {
           hostname: url.hostname,
           port: url.port || (url.protocol === "https:" ? 443 : 80),
           path: "/api/tags",
           method: "GET",
-          timeout: 5000
+          timeout: timeoutMs  // Use configured timeout
         };
+
+        console.log(`Checking model existence with ${timeoutMs/1000} second timeout`);
 
         const client = url.protocol === "https:" ? https : http;
         const req = client.request(options, (res) => {
@@ -725,14 +827,56 @@ class OllamaInlineCompletionProvider
   /**
    * Create a prompt specifically for Python code completions
    */
-  private createPythonPrompt(languageHint: string, prefix: string): string {
-    return `${languageHint}# You are a helpful Python coding assistant that provides inline completions.
-# CRITICAL INSTRUCTIONS:
-# 1. Provide ONLY raw Python code that directly follows from the last line provided.
-# 2. NEVER use markdown formatting like \`\`\`python or \`\`\`.
-# 3. DO NOT include any explanations, docstrings, or comments that aren't part of the code.
-# 4. DO NOT include any "Here's the completion" text or similar phrases.
-# 5. Respond ONLY with the exact Python code that would logically follow.
+ private createPythonPrompt(languageHint: string, prefix: string): string {
+  return `${languageHint}# PYTHON CODE COMPLETION ASSISTANT
+# I will provide concise completions that directly follow from your current Python code, suggesting the next logical step or line of code.
+# Guidelines:
+# - I'll match your coding style, indentation, and naming conventions as closely as possible.
+# - I'll complete function bodies, classes, loops, conditionals, etc., with minimal code that fits the context.
+# - I'll adhere to PEP 8 style guidelines, unless your existing code suggests otherwise.
+# - I'll only complete or suggest docstrings if they are already present in your code or if the context strongly indicates their necessity.
+# - I'll respect the import conventions used in your code and avoid suggesting unnecessary imports.
+# - I'll maintain a complexity level consistent with your existing code, neither oversimplifying nor overcomplicating the suggestions.
+# - I'll include type hints in the completion if your code already uses them.
+# - My goal is to assist you in writing code efficiently without disrupting your workflow, so I'll keep the suggestions brief and relevant.
+
+${prefix}`;
+}
+
+  /**
+   * Create a prompt specifically for TypeScript code completions
+   */
+  private createTypeScriptPrompt(languageHint: string, prefix: string): string {
+    return `${languageHint}// You are a code completion assistant that continues TypeScript code naturally.
+// Context: You're in a code editor providing inline completions as the user types.
+// REQUIREMENTS:
+// 1. Continue the code with EXACTLY what would come next.
+// 2. Focus on producing CORRECT, IDIOMATIC TypeScript code.
+// 3. DO NOT wrap in markdown code blocks or use \`\`\`.
+// 4. DO NOT include explanatory comments or notes that aren't in the original style.
+// 5. Match the existing code's style, naming patterns, and whitespace usage.
+// 6. Continue function bodies, interfaces, types, classes, or statements that are incomplete.
+// 7. Include proper type annotations consistent with the codebase.
+// 8. NEVER include any introduction or meta-text before your completion.
+
+${prefix}`;
+  }
+
+  /**
+   * Create a prompt specifically for JavaScript code completions
+   */
+  private createJavaScriptPrompt(languageHint: string, prefix: string): string {
+    return `${languageHint}// You are a code completion assistant that continues JavaScript code naturally.
+// Context: You're in a code editor providing inline completions as the user types.
+// REQUIREMENTS:
+// 1. Continue the code with EXACTLY what would come next.
+// 2. Focus on producing CORRECT, IDIOMATIC JavaScript code.
+// 3. DO NOT wrap in markdown code blocks or use \`\`\`.
+// 4. DO NOT include explanatory comments or notes that aren't in the original style.
+// 5. Match the existing code's style, naming patterns, and whitespace usage.
+// 6. Complete function bodies, classes, or statements that are incomplete.
+// 7. Continue logical patterns that appear in the existing code.
+// 8. NEVER include any introduction or meta-text before your completion.
 
 ${prefix}`;
   }
@@ -741,14 +885,17 @@ ${prefix}`;
    * Create a prompt for generic code completions
    */
   private createGenericPrompt(languageHint: string, fileExtension: string, prefix: string): string {
-    return `${languageHint}// You are a helpful coding assistant that provides inline code completions. Complete the following ${fileExtension} code with the most logical continuation.
-
-// CRITICAL INSTRUCTIONS:
-// 1. Only provide raw code. DO NOT wrap in markdown code blocks.
-// 2. DO NOT use \`\`\`python, \`\`\`javascript, or any other language markers.
-// 3. DO NOT include any explanation, comments about the code, or closing \`\`\` markers.
-// 4. DO NOT start your response with "Here's the completion:" or any similar phrase.
-// 5. Respond ONLY with the exact code that would logically follow.
+    return `${languageHint}// You are a code completion assistant that continues ${fileExtension || "code"} naturally.
+// Context: You're in a code editor providing inline completions as the user types.
+// REQUIREMENTS:
+// 1. Continue the code with EXACTLY what would come next.
+// 2. Focus on producing CORRECT, IDIOMATIC code for this language.
+// 3. DO NOT wrap in markdown code blocks or use \`\`\`.
+// 4. DO NOT include explanatory comments or notes that aren't in the original style.
+// 5. Match the existing code's style, naming patterns, and whitespace usage.
+// 6. Complete any statements, functions, or blocks that are incomplete.
+// 7. Continue logical patterns that appear in the existing code.
+// 8. NEVER include any introduction or meta-text before your completion.
 
 ${prefix}`;
   }
