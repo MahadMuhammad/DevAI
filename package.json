@@ -109,12 +109,12 @@
         },
         "ollama.model": {
           "type": "string",
-          "default": "gemma2:2b-instruct-q4_K_M",
+          "default": "qwen2.5:3b",
           "description": "Model to use for completions (e.g., codellama, llama2)"
         },
         "ollama.maxTokens": {
           "type": "number",
-          "default": 50,
+          "default": 30,
           "description": "Maximum number of tokens to generate"
         },
         "ollama.pauseCompletion": {
@@ -132,7 +132,21 @@
           "default": 0.2,
           "minimum": 0,
           "maximum": 2,
-          "description": "Temperature for completions (0 = deterministic, higher = more random)"
+          "description": "Temperature for completions, 0 = deterministic, higher = more random (default: 0.2)"
+        },
+        "ollama.largeModelTimeout": {
+          "type": "number",
+          "default": 180,
+          "minimum": 30,
+          "maximum": 600,
+          "description": "Timeout in seconds for large models (7B+) API requests"
+        },
+        "ollama.standardModelTimeout": {
+          "type": "number",
+          "default": 60,
+          "minimum": 10,
+          "maximum": 300,
+          "description": "Timeout in seconds for standard models API requests"
         }
       }
     }
